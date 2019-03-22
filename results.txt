@@ -1,4 +1,5 @@
-1. Поиск количества платных звонков:
+п»ї
+1. Count calls that must be paid.
 SELECT COUNT(*) 
 FROM Call_logs 
 LEFT JOIN Numbers ON Call_logs.To = Numbers.Phone_number 
@@ -8,8 +9,7 @@ WHERE Call_logs.Call_dir = 'out' AND Numbers.UID IS NULL;
 +----------+                                                                                                            
 |       33 |                                                                                                            
 +----------+  
-Альтернатива: (данный вариант возможен, но он намного медленее предыдущего варианта, 
-так как для каждой записи создает новый Select)
+Alternative (this approach is possible, but it is more expensive because SELECT is needed to be performed for each row)
  SELECT COUNT(*) 
 FROM Call_logs 
 WHERE Call_dir = 'out' AND Call_logs.To NOT IN (SEELECT Phone_Number FROM Numbers);
@@ -19,7 +19,7 @@ WHERE Call_dir = 'out' AND Call_logs.To NOT IN (SEELECT Phone_Number FROM Number
 |       33 |                                                                                                            
 +----------+  
 
-2. Для удобства можно создать новый View, демонстрирующий платные звонки
+2. Creating view for all calls that must be paid.
 CREATE VIEW paid_calls AS SELECT Call_logs.Call_id, Call_logs.Call_dir, Call_logs.From, Call_logs.To, 
 Call_logs.UID, Call_logs.Timestamp_start, Call_logs.Timestamp_end 
 FROM Call_logs 
@@ -64,9 +64,9 @@ WHERE Call_logs.Call_dir = 'out' AND Numbers.UID IS NULL;
 +---------+----------+------+------+-------+---------------------+---------------------+                                
 33 rows in set (0.02 sec)   
 
-3. Подсчет расходов:
-Подсчет расходов исходя из стоимости разговора за минуту. Различные варианты в зависимости от того как считается расход:
-Только за целую минуту разговора:
+3. Total expenses
+There are two cases depending on how the conversation is paid.
+1) For each minute where minutes are integer values
 SELECT call_id, timestamp_start, timestamp_end, TIMESTAMPDIFF(MINUTE, timestamp_start, timestamp_end) as duration_in_minutes 
 FROM paid_calls;                                                                                            
 +---------+---------------------+---------------------+---------------------+                                           
@@ -116,7 +116,7 @@ FROM paid_calls;
 +---------------------+                                                                                                 
 1 row in set (0.01 sec)  
 
-Если подсчет идет не только по целым значениям:
+2) Minutes are not integer.
 
 SELECT call_id, timestamp_start, timestamp_end, TIMESTAMPDIFF(SECOND, timestamp_start, timestamp_end)/60 as duration_in_minutes 
 FROM paid_calls;                                                                                         
@@ -168,7 +168,7 @@ FROM paid_calls;
 +---------------------+                                                                                                 
 1 row in set (0.01 sec)   
 
-4. Поиск количества звонков, совершенных каждым из пользователей:
+4. Finding the number of calls made by users:
 Select Call_logs.UID, Accounts.Name, COUNT(*) AS total_calls_count 
 FROM Call_logs 
 JOIN Accounts ON Call_logs.UID = Accounts.UID GROUP BY UID;                                                                                           
@@ -259,7 +259,7 @@ JOIN Accounts ON Call_logs.UID = Accounts.UID GROUP BY UID;
 | 99653 | Olga  |                 1 |                                                                                   
 +-------+-------+-------------------+  
 
-Поиск самых активных пользователей:
+Top 10: Most active users:
 Select Call_logs.UID, Accounts.Name, COUNT(*) AS total_calls_count 
 FROM Call_logs JOIN Accounts ON Call_logs.UID = Accounts.UID 
 GROUP BY UID 
@@ -281,9 +281,8 @@ LIMIT 10;
 +-------+-------+-------------------+                                                                                   
 10 rows in set (0.01 sec) 
 
-5. Поиск ТОП-10 пользователей с наибольшей оплатой.
-В Таблице Call_logs присутствуют пользователи с UID без указанного имени, поэтому получаем два варианта:
-для зарегистрированных в БД пользователей:
+5. Top 10: Users with highest charges, and daily distribution for each of them:
+For users that are in the DB (who has name):
 SELECT Accounts.UID, Accounts.Name, timestamp_start, timestamp_end, 
 SUM(TIMESTAMPDIFF(SECOND, timestamp_start, timestamp_end)/60 * (SELECT Money FROM Rates WHERE ID = 3)) as price, count(call_id) as calls_count 
 FROM paid_calls join Accounts on Accounts.UID = paid_calls.UID 
@@ -306,7 +305,7 @@ LIMIT 10;
 +-------+-------+---------------------+---------------------+---------------------+-------------+                       
 10 rows in set (0.01 sec)
 
-Для всех пользователей:
+For all users:
 SELECT UID, timestamp_start, timestamp_end, 
 SUM(TIMESTAMPDIFF(SECOND, timestamp_start, timestamp_end)/60 * (SELECT Money FROM Rates WHERE ID = 3)) as price, count(call_id) as calls_count 
 FROM paid_calls 
